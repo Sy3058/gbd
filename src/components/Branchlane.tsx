@@ -44,17 +44,37 @@ export function BranchLane({
   mergeY,
 }: Props) {
   const colors = getColors(branch);
+  const isMerged = mergeY !== undefined;
   const stroke = isActive ? colors.stroke : `${colors.stroke}44`;
 
-  // transition-colors only: 위치/크기 속성에 transition 금지 (매 틱 변경되므로)
   const lineClass = clsx(
     "absolute w-1 transition-colors duration-300",
     isActive ? colors.active : colors.inactive,
   );
 
+  /* ── 비-main 브랜치의 수직선 범위 계산 (렌더링 로직 분리) ── */
+  // 1. 선이 시작되는 가장 윗부분 (머지 지점 또는 현재 화면 끝)
+  const topEdge = mergeY !== undefined ? mergeY : 0;
+
+  // 2. 선이 끝나는 가장 아랫부분 (분기 지점 또는 화면 밖 100%)
+  // 화면을 뚫고 나가는 것을 방지하기 위해 여기서 미리 Math.min 처리
+  const bottomEdge = originY !== undefined ? Math.min(originY, 100) : 100;
+
+  // 3. 최종 선의 길이 (음수가 되지 않도록 방어)
+  const lineHeight = Math.max(0, bottomEdge - topEdge);
+
+  /* ── 라벨 시각화 로직 ── */
+  const isLabelVisible =
+    branch === "main" || (originY !== undefined && !isMerged);
+  const labelOpacityClass = isLabelVisible
+    ? isActive
+      ? "opacity-100"
+      : "opacity-50"
+    : "opacity-0 pointer-events-none";
+
   return (
     <>
-      {/* ── Main branch: full-height vertical line ── */}
+      {/* ── 1. Main branch: 항상 렌더링 ── */}
       {branch === "main" && (
         <div
           className={lineClass}
@@ -62,37 +82,22 @@ export function BranchLane({
         />
       )}
 
-      {/* ── Non-main branch ── */}
-      {branch !== "main" && (
+      {/* ── 2. Non-main branch ── */}
+      {branch !== "main" && originY !== undefined && (
         <>
-          {/*
-            feature 직선: 분기점(originY)에서 위로 올라가는 선
-            - originY 미설정: 전체 높이 (커밋 진입 전 레인 표시)
-            - originY 설정: top=0 → originY% (분기점까지만 표시, 그 이상은 main)
-            - mergeY 설정: top=0 → mergeY% (merge 지점에서 끝, 이후 스크롤 아웃)
-          */}
           <div
             className={lineClass}
             style={{
               left: leftPosition,
               marginLeft: "-2px",
-              top: 0,
-              height: (() => {
-                if (mergeY !== undefined)
-                  return `${Math.min(mergeY, 100)}%`;
-                if (originY !== undefined)
-                  return `${Math.min(originY, 100)}%`;
-                return "100%";
-              })(),
+              // 🔥 복잡한 수식이 사라지고 변수만 깔끔하게 주입됨
+              top: `${topEdge}%`,
+              height: `${lineHeight}%`,
             }}
           />
 
-          {/*
-            분기 커브: main → feature
-            originY 위치에서 U자형 아치로 연결
-            M 0 0 = main측 (originY%), C 0 1, 1 1 = 아래로 arch, 1 0 = feature측 (originY%)
-          */}
-          {originY !== undefined && parentLeft && (
+          {/* 분기 커브: 본선에서 떨어져 나오는 시점 (과거) */}
+          {parentLeft && (
             <svg
               className="absolute pointer-events-none"
               viewBox="0 0 1 1"
@@ -115,11 +120,7 @@ export function BranchLane({
             </svg>
           )}
 
-          {/*
-            머지 커브: feature → main
-            mergeY 위치에서 U자형 아치로 역방향 연결
-            M 1 0 = feature측 (mergeY%), C 1 1, 0 1 = 아래로 arch, 0 0 = main측 (mergeY%)
-          */}
+          {/* 머지 커브: 본선으로 합류하는 시점 (현재) */}
           {mergeY !== undefined && parentLeft && (
             <svg
               className="absolute pointer-events-none"
@@ -145,14 +146,15 @@ export function BranchLane({
         </>
       )}
 
-      {/* Branch label */}
+      {/* ── 3. Branch Label (Screen-Space UI) ── */}
       <span
         className={clsx(
-          "absolute top-4 font-bold text-xs",
-          isActive ? "opacity-100" : "opacity-50",
+          "absolute font-bold text-xs transition-opacity duration-500",
+          labelOpacityClass,
         )}
         style={{
           left: leftPosition,
+          top: "16px",
           transform: "translateX(-50%)",
           color: colors.stroke,
         }}

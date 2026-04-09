@@ -1,7 +1,9 @@
 export type GameState =
   | "START"
   | "PLAYING"
-  | "BRANCH_INTRO" // 새 브랜치 등장 시 인게임 팝업
+  | "BRANCH_INTRO"
+  | "ITEM_INTRO"
+  | "WAVE_TRANSITION"
   | "GAMEOVER"
   | "SUCCESS";
 

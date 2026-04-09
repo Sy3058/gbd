@@ -49,6 +49,15 @@ export const TUTORIAL_WAVES: WaveConfig[] = [
     itemDropRate: 0,
     mergeRate: 0.4,
   },
+  {
+    wave: 3,
+    commitCount: 3,
+    speed: 0.015,
+    spawnInterval: 4500,
+    branches: ["main"],
+    itemDropRate: 1,
+    mergeRate: 0,
+  },
 ];
 
 export const TUTORIAL_TOTAL_COMMITS = TUTORIAL_WAVES.reduce(

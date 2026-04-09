@@ -8,6 +8,8 @@ import { SuccessScreen } from "./overlay/SuccessScreen";
 import { TutorialPopup } from "./overlay/TutorialPropup";
 import { TutorialHint } from "./overlay/TutorialHint";
 import type { BranchName } from "../types";
+import { WaveScreen } from "./overlay/WaveScreen";
+import { ItemTutorialPopup } from "./overlay/ItemTutorialPopup";
 
 // 브랜치별 X 위치
 const BRANCH_POSITIONS: Record<string, string> = {
@@ -27,6 +29,7 @@ export function GameCanvas() {
   const activeBranches = useGameStore((s) => s.activeBranches);
   const branchOrigins = useGameStore((s) => s.branchOrigins);
   const branchMergePoints = useGameStore((s) => s.branchMergePoints);
+  const branchParents = useGameStore((s) => s.branchParents);
   const activeCommit = useGameStore((s) => s.activeCommit);
   const fixedCommits = useGameStore((s) => s.fixedCommits);
 
@@ -41,7 +44,11 @@ export function GameCanvas() {
             isActive={currentBranch === branch}
             leftPosition={getBranchLeft(branch)}
             originY={branchOrigins[branch]}
-            parentLeft={branch !== "main" ? getBranchLeft("main") : undefined}
+            parentLeft={
+              branch !== "main"
+                ? getBranchLeft(branchParents[branch] || "main")
+                : undefined
+            }
             mergeY={branchMergePoints[branch]}
           />
         ))}
@@ -82,6 +89,8 @@ export function GameCanvas() {
         {gameState === "GAMEOVER" && <GameOverScreen />}
         {gameState === "SUCCESS" && <SuccessScreen />}
         {gameState === "BRANCH_INTRO" && <TutorialPopup />}
+        {gameState === "WAVE_TRANSITION" && <WaveScreen />}
+        {gameState === "ITEM_INTRO" && <ItemTutorialPopup />}
       </AnimatePresence>
     </div>
   );

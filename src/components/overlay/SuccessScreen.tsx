@@ -1,10 +1,12 @@
 import clsx from "clsx";
 import { motion } from "framer-motion";
-import { CheckCircle2, RefreshCw } from "lucide-react";
+import { CheckCircle2, Home, Play, RefreshCw } from "lucide-react";
 import { useGameStore } from "../../stores/gameStore";
 
 export function SuccessScreen() {
   const startGame = useGameStore((s) => s.startGame);
+  const reset = useGameStore((s) => s.reset);
+  const gameMode = useGameStore((s) => s.gameMode);
   const timer = useGameStore((s) => s.timer);
   const maxCombo = useGameStore((s) => s.maxCombo);
   const missCount = useGameStore((s) => s.missCount);
@@ -18,7 +20,8 @@ export function SuccessScreen() {
 
   // 등급 계산
   const getGrade = () => {
-    const score = maxCombo * 100 - missCount * 200 - wrongCount * 50 - timer / 1000;
+    const score =
+      maxCombo * 100 - missCount * 200 - wrongCount * 50 - timer / 1000;
     if (score > 800)
       return { grade: "S", label: "아키텍트", color: "text-yellow-400" };
     if (score > 500)
@@ -68,12 +71,39 @@ export function SuccessScreen() {
           <p>✏️ 오타 횟수: {wrongCount}</p>
         </div>
 
-        <button
-          onClick={() => startGame("single")}
-          className="flex items-center gap-2 bg-green-600 px-8 py-3 rounded-lg font-bold hover:bg-green-500 transition-all cursor-pointer"
-        >
-          <RefreshCw size={20} /> PLAY AGAIN
-        </button>
+        <div className="flex flex-col gap-3 w-full">
+          {gameMode === "tutorial" ? (
+            <>
+              <button
+                onClick={() => startGame("single")}
+                className="flex items-center justify-center gap-2 bg-green-600 px-8 py-3 rounded-lg font-bold hover:bg-green-500 transition-all cursor-pointer"
+              >
+                <Play size={20} /> 게임 시작
+              </button>
+              <button
+                onClick={() => startGame("tutorial")}
+                className="flex items-center justify-center gap-2 bg-blue-600 px-8 py-3 rounded-lg font-bold hover:bg-blue-500 transition-all cursor-pointer"
+              >
+                <RefreshCw size={20} /> 튜토리얼 다시하기
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => startGame("single")}
+                className="flex items-center justify-center gap-2 bg-green-600 px-8 py-3 rounded-lg font-bold hover:bg-green-500 transition-all cursor-pointer"
+              >
+                <RefreshCw size={20} /> 다시하기
+              </button>
+              <button
+                onClick={() => reset()}
+                className="flex items-center justify-center gap-2 bg-gray-700 px-8 py-3 rounded-lg font-bold hover:bg-gray-600 transition-all cursor-pointer text-white"
+              >
+                <Home size={20} /> 메인 메뉴로
+              </button>
+            </>
+          )}
+        </div>
       </motion.div>
     </motion.div>
   );
