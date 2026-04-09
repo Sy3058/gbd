@@ -38,7 +38,7 @@ interface GameStore {
   activeBranches: BranchName[];
   branchOrigins: Record<string, number>;
   branchMergePoints: Record<string, number>;
-  branchParents: Record<string, string>; // 부모 브랜치 추적
+  branchParents: Record<string, string>;
 
   activeCommit: CommitNode | null;
   fixedCommits: CommitNode[];
@@ -48,7 +48,7 @@ interface GameStore {
   currentWave: number;
   items: Item[];
   input: string;
-  hasSeenItemTutorial: boolean; // 튜토리얼 시청 여부
+  hasSeenItemTutorial: boolean;
 
   lastSpawnTime: number;
   gameStartTime: number;
@@ -60,7 +60,7 @@ interface GameStore {
   appendInput: (char: string) => void;
   backspace: () => void;
   submitCommand: () => void;
-  useItem: (itemType: ItemType) => void;
+  activateItem: (itemType: ItemType) => void; // 🔥 useItem에서 이름 변경
   reset: () => void;
   advanceWaveOrEnd: () => void;
   closeItemTutorial: () => void;
@@ -156,7 +156,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   tick: (now: number) => {
     const state = get();
-    if (state.gameState !== "PLAYING") return; // 일시정지 보호
+    if (state.gameState !== "PLAYING") return;
 
     const lastTickTime = state.lastTickTime || now;
     const deltaTime = now - lastTickTime;
@@ -251,65 +251,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const waves = state.gameMode === "tutorial" ? TUTORIAL_WAVES : WAVES;
     const nextWaveIndex = state.currentWave + 1;
 
-    // 1. 웨이브 종료 체크 (성공)
     if (nextWaveIndex >= waves.length) {
       set({ gameState: "SUCCESS" });
       return;
     }
 
     const nextWave = waves[nextWaveIndex];
-
-    // 2. 이미 병합 완료된(죽은) 브랜치 목록 추출
     const mergedBranches = Object.keys(state.branchMergePoints);
-
-    // 3. 이번 웨이브에서 새롭게 등장해야 할 브랜치 계산 (이미 활성화됐거나 병합된 것 제외)
     const newBranches = nextWave.branches.filter(
       (b) => !state.activeBranches.includes(b) && !mergedBranches.includes(b),
     );
-
-    // 4. 일반 커밋 큐 생성 (병합된 브랜치에는 커밋이 안 떨어지도록 필터링 배열 전달)
     const newCommits = generateWaveCommits(nextWave, mergedBranches);
 
     if (newBranches.length > 0) {
       if (state.gameMode === "single") {
-        // 🔥 핵심 수정 사항: 싱글 모드 새 브랜치(checkout -b) 노드 주입
-        // 병합되지 않고 '살아있는' 브랜치만 후보군으로 추출합니다.
         let aliveBranches = state.activeBranches.filter(
           (b) => !mergedBranches.includes(b),
         );
-
-        // 혹시라도 살아있는 브랜치가 없다면 최후의 보루로 main을 사용합니다.
         if (aliveBranches.length === 0) aliveBranches = ["main"];
 
         const checkoutNodes = newBranches.map((b) => {
-          // 죽은 브랜치(예: feature)를 배제한 aliveBranches 안에서만 무작위 출발점을 고릅니다.
           const randomSource =
             aliveBranches[Math.floor(Math.random() * aliveBranches.length)];
           return generateCheckoutNode(b, randomSource, nextWave.speed);
         });
-
         newCommits.unshift(...checkoutNodes);
       } else {
-        // 튜토리얼 모드: 팝업 기믹용으로 첫 커밋을 강제로 새 브랜치 타겟으로 스왑
         const targetBranch = newBranches[0];
         const firstNewIdx = newCommits.findIndex((c) =>
           newBranches.includes(c.targetBranch),
         );
-        if (firstNewIdx > 0) {
+        if (firstNewIdx > 0)
           [newCommits[0], newCommits[firstNewIdx]] = [
             newCommits[firstNewIdx],
             newCommits[0],
           ];
-        } else if (firstNewIdx === -1) {
+        else if (firstNewIdx === -1)
           newCommits[0] = { ...newCommits[0], targetBranch };
-        }
       }
     }
 
     const [first, ...rest] = newCommits;
     const waveNumber = nextWaveIndex + 1;
 
-    // 5. 모드별 상태 전이
     if (state.gameMode === "single") {
       set({
         gameState: "WAVE_TRANSITION",
@@ -319,8 +303,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         commitQueue: rest,
         waveAnnouncement: waveNumber,
       });
-
-      // 1.2초 후 게임 재개 및 시간 동기화 (텔레포트 버그 방지)
       setTimeout(() => {
         if (get().gameState === "WAVE_TRANSITION") {
           const now = performance.now();
@@ -333,7 +315,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }, 1200);
     } else if (newBranches.length > 0) {
-      // 튜토리얼 모드: 새 브랜치 등장 시 팝업 띄우기
       set({
         gameState: "BRANCH_INTRO",
         currentWave: nextWaveIndex,
@@ -342,7 +323,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         commitQueue: rest,
       });
     } else {
-      // 튜토리얼에서 새 브랜치가 없는 일반 웨이브 진행 시
       const now = performance.now();
       set({
         currentWave: nextWaveIndex,
@@ -362,6 +342,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     const parsed = parseGitCommand(state.input);
     const inputTrimmed = state.input.trim();
+
+    if (inputTrimmed === "") {
+      set({ input: "" });
+      return;
+    }
+
+    if (["1", "2", "3"].includes(inputTrimmed)) {
+      const index = parseInt(inputTrimmed) - 1;
+      const item = state.items[index];
+
+      // 해당 슬롯에 아이템이 존재할 때만 발동
+      if (item) {
+        get().activateItem(item.type);
+      }
+
+      // 아이템이 있든 없든 1,2,3 단독 입력은 무조건 터미널을 비우고 종료 (오타 판정 방지)
+      set({ input: "" });
+      return;
+    }
 
     const isNodeMatch =
       state.gameState === "PLAYING" &&
@@ -414,7 +413,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         items.length < MAX_ITEMS
       ) {
         items.push(ITEM_DEFINITIONS[commit.itemDrop]);
-        // 🔥 오직 튜토리얼 모드에서만! 싱글 플레이일 때는 절대 팝업 안 띄움
         if (state.gameMode === "tutorial" && !state.hasSeenItemTutorial) {
           shouldShowItemTutorial = true;
         }
@@ -489,13 +487,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     switch (parsed.type) {
       case "CHECKOUT_NEW": {
-        // 활성화되지 않은 브랜치를 만들려 하면 break하여 맨 밑의 오타 로직으로 빠지게 둠
         if (!state.activeBranches.includes(parsed.branch)) break;
-
         const branchOrigins = { ...state.branchOrigins };
 
         if (state.gameState === "BRANCH_INTRO") {
-          // 튜토리얼 팝업 상태에서 정상 입력
           if (branchOrigins[parsed.branch] === undefined) {
             branchOrigins[parsed.branch] = state.activeCommit
               ? state.activeCommit.y
@@ -513,42 +508,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
             branchOrigins,
             input: "",
           });
-          return; // 🔥 정상 처리 완료: 함수 즉시 종료
+          return;
         } else if (state.gameState === "PLAYING") {
-          // 일반 플레이 도중 정상 입력
           if (branchOrigins[parsed.branch] === undefined) {
             branchOrigins[parsed.branch] = state.activeCommit
               ? state.activeCommit.y
               : 0;
           }
           set({ currentBranch: parsed.branch, branchOrigins, input: "" });
-          return; // 🔥 정상 처리 완료: 함수 즉시 종료
+          return;
         }
-        break; // 그 외 비정상 상태일 경우 오타 처리
+        break;
       }
 
       case "CHECKOUT": {
-        // 존재하는 브랜치로 정상 이동
         if (
           state.gameState === "PLAYING" &&
           state.activeBranches.includes(parsed.branch)
         ) {
           set({ currentBranch: parsed.branch, input: "" });
-          return; // 🔥 정상 처리 완료: 함수 즉시 종료
+          return;
         }
-        break; // 존재하지 않는 브랜치로 이동 시도 시 오타 처리
+        break;
       }
 
       case "COMMIT":
-      case "MERGE": {
-        // 이 곳에 도달했다는 것은 상단의 정답 판정(isNodeMatch)을 통과하지 못했다는 뜻.
-        // 즉, 타이밍이 안 맞았거나 다른 브랜치의 커밋을 치는 등 명백한 '실수'임.
-        break; // 🔥 바로 밑의 오타 처리 로직으로 보냄
-      }
+      case "MERGE":
+        break;
 
       case "ITEM_USE": {
         const itemIndex = state.items.findIndex((i) => i.type === parsed.item);
-        if (itemIndex === -1) break; // 없는 아이템 사용 시도 시 오타 처리
+        if (itemIndex === -1) break;
 
         const newItems = [...state.items];
         newItems.splice(itemIndex, 1);
@@ -565,7 +555,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             if (current)
               set({ activeCommit: { ...current, speed: originalSpeed } });
           }, 3000);
-          return; // 🔥 정상 처리 완료
+          return;
         } else if (parsed.item === "rebase" && state.activeCommit) {
           set({
             activeCommit: {
@@ -575,14 +565,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
             items: newItems,
             input: "",
           });
-          return; // 🔥 정상 처리 완료
+          return;
         } else if (parsed.item === "heal") {
           set({
             hearts: Math.min(3, state.hearts + 1),
             items: newItems,
             input: "",
           });
-          return; // 🔥 정상 처리 완료
+          return;
         }
         break;
       }
@@ -593,18 +583,41 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } else {
       set({ input: "" });
     }
-
-    if (state.gameState === "PLAYING" && state.activeCommit)
-      set({ combo: 0, wrongCount: state.wrongCount + 1, input: "" });
-    else set({ input: "" });
   },
 
-  useItem: (itemType: ItemType) => {
+  // 🔥 이름 변경 및 인자 타입 유지: 파서 우회, 즉시 상태 조작
+  activateItem: (itemType: ItemType) => {
     const state = get();
+    if (state.gameState !== "PLAYING") return;
+
     const itemIndex = state.items.findIndex((i) => i.type === itemType);
     if (itemIndex === -1) return;
-    set({ input: `git ${itemType}` });
-    get().submitCommand();
+
+    const newItems = [...state.items];
+    newItems.splice(itemIndex, 1);
+
+    if (itemType === "stash" && state.activeCommit) {
+      const originalSpeed = state.activeCommit.speed;
+      set({
+        activeCommit: { ...state.activeCommit, speed: 0 },
+        items: newItems,
+      });
+      setTimeout(() => {
+        const current = get().activeCommit;
+        if (current)
+          set({ activeCommit: { ...current, speed: originalSpeed } });
+      }, 3000);
+    } else if (itemType === "rebase" && state.activeCommit) {
+      set({
+        activeCommit: {
+          ...state.activeCommit,
+          speed: state.activeCommit.speed * 0.5,
+        },
+        items: newItems,
+      });
+    } else if (itemType === "heal") {
+      set({ hearts: Math.min(3, state.hearts + 1), items: newItems });
+    }
   },
 
   closeItemTutorial: () => {

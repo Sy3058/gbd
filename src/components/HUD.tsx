@@ -74,35 +74,52 @@ export function HUD() {
         </div>
       </div>
 
-      {/* 우측: 타이머 + 아이템 */}
-      <div className="flex items-center gap-3">
+      {/* 우측: 타이머 + 아이템 슬롯 */}
+      <div className="flex items-center gap-5">
         <div className="text-lg font-bold text-gray-300 tabular-nums">
           {formatTime(timer)}
         </div>
-        <div className="flex gap-1">
-          {items.map((item, i) => (
-            <div
-              key={i}
-              className={clsx(
-                "w-8 h-8 rounded border flex items-center justify-center text-[10px]",
-                item.type === "stash" && "border-blue-500 bg-blue-500/20",
-                item.type === "rebase" && "border-purple-500 bg-purple-500/20",
-                item.type === "heal" && "border-red-500 bg-red-500/20",
-              )}
-              title={`${item.name}: ${item.description}`}
-            >
-              {item.type === "stash" && "📦"}
-              {item.type === "rebase" && "🔀"}
-              {item.type === "heal" && "💊"}
-            </div>
-          ))}
-          {/* 빈 슬롯 */}
-          {Array.from({ length: 3 - items.length }).map((_, i) => (
-            <div
-              key={`empty-${i}`}
-              className="w-8 h-8 rounded border border-gray-700 bg-gray-800/50"
-            />
-          ))}
+
+        {/* 🔥 키보드 입력 전용 아이템 슬롯 UI */}
+        <div className="flex gap-3">
+          {[0, 1, 2].map((index) => {
+            const item = items[index];
+
+            return (
+              // button 태그를 div로 변경하고 클릭 관련 속성 제거
+              <div
+                key={index}
+                className={clsx(
+                  "relative flex items-center justify-center gap-2 px-3 py-2 w-28 rounded-lg border text-sm font-bold transition-all",
+                  item
+                    ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-100 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
+                    : "border-gray-700 bg-gray-800/50 text-gray-600",
+                )}
+                title={item ? `${item.name}: ${item.description}` : "빈 슬롯"}
+              >
+                {/* 🔥 슬롯 번호 단축키 뱃지 (엔터 기호 추가) */}
+                <span className="absolute -top-2 -left-2 bg-gray-800 border border-gray-600 text-yellow-400 font-mono px-2 h-5 flex items-center justify-center rounded-md text-[10px]">
+                  {index + 1} ↵
+                </span>
+
+                {/* 아이템 내용 또는 Empty */}
+                {item ? (
+                  <>
+                    <span className="text-lg">
+                      {item.type === "stash"
+                        ? "📦"
+                        : item.type === "rebase"
+                          ? "⏱️"
+                          : "💖"}
+                    </span>
+                    <span>{item.type}</span>
+                  </>
+                ) : (
+                  <span className="w-full text-center">Empty</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
