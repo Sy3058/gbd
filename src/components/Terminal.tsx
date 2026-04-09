@@ -11,7 +11,7 @@ export function Terminal() {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (gameState !== "PLAYING" && gameState !== "TUTORIAL") return;
+      if (gameState !== "PLAYING" && gameState !== "BRANCH_INTRO") return;
 
       // IME 입력 중이면 무시
       if (e.nativeEvent.isComposing) return;
@@ -35,14 +35,10 @@ export function Terminal() {
       className="bg-black p-6 font-mono text-sm relative group cursor-text h-full"
       onClick={() => document.getElementById("term-input")?.focus()}
     >
-      {/* 경로 표시 */}
-      <div className="text-blue-400 mb-2">
-        C:\Users\Branch\Defense{" "}
-        <span className="text-yellow-400">({currentBranch})</span>
-      </div>
-
       {/* 입력 라인 */}
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-center flex-wrap">
+        <span className="text-blue-400">C:\Users\Branch\Defense</span>
+        <span className="text-yellow-400">{currentBranch}</span>
         <span className="text-green-500">$</span>
         <span className="text-white whitespace-pre">{input}</span>
         <span className="w-2 h-4 bg-white animate-pulse" />

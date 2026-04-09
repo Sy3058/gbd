@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { motion } from "framer-motion";
 import { CheckCircle2, RefreshCw } from "lucide-react";
 import { useGameStore } from "../../stores/gameStore";
@@ -7,6 +8,7 @@ export function SuccessScreen() {
   const timer = useGameStore((s) => s.timer);
   const maxCombo = useGameStore((s) => s.maxCombo);
   const missCount = useGameStore((s) => s.missCount);
+  const wrongCount = useGameStore((s) => s.wrongCount);
 
   const formatTime = (ms: number) => {
     const s = Math.floor(ms / 1000);
@@ -16,7 +18,7 @@ export function SuccessScreen() {
 
   // 등급 계산
   const getGrade = () => {
-    const score = maxCombo * 100 - missCount * 200 - timer / 1000;
+    const score = maxCombo * 100 - missCount * 200 - wrongCount * 50 - timer / 1000;
     if (score > 800)
       return { grade: "S", label: "아키텍트", color: "text-yellow-400" };
     if (score > 500)
@@ -54,8 +56,8 @@ export function SuccessScreen() {
           transition={{ delay: 0.3, type: "spring" }}
           className="my-4"
         >
-          <span className={`text-7xl font-black ${color}`}>{grade}</span>
-          <p className={`text-sm mt-1 ${color}`}>{label}</p>
+          <span className={clsx("text-7xl font-black", color)}>{grade}</span>
+          <p className={clsx("text-sm mt-1", color)}>{label}</p>
         </motion.div>
 
         {/* 상세 결과 */}
@@ -63,10 +65,11 @@ export function SuccessScreen() {
           <p>⏱ 클리어 시간: {formatTime(timer)}</p>
           <p>🔥 최대 콤보: {maxCombo}</p>
           <p>💔 미스 횟수: {missCount}</p>
+          <p>✏️ 오타 횟수: {wrongCount}</p>
         </div>
 
         <button
-          onClick={startGame}
+          onClick={() => startGame("single")}
           className="flex items-center gap-2 bg-green-600 px-8 py-3 rounded-lg font-bold hover:bg-green-500 transition-all cursor-pointer"
         >
           <RefreshCw size={20} /> PLAY AGAIN

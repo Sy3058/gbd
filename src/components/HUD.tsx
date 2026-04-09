@@ -18,9 +18,9 @@ export function HUD() {
   };
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-30 flex justify-between items-start p-4 pointer-events-none">
+    <div className="flex justify-between items-center px-4 py-2 bg-[#0d1117] border-b border-gray-800 shrink-0">
       {/* 좌측: 하트 + 콤보 */}
-      <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-3">
         <motion.div
           className="flex gap-1"
           animate={hearts < 3 ? { x: [-5, 5, -3, 3, 0] } : {}}
@@ -75,7 +75,7 @@ export function HUD() {
       </div>
 
       {/* 우측: 타이머 + 아이템 */}
-      <div className="flex flex-col items-end gap-2">
+      <div className="flex items-center gap-3">
         <div className="text-lg font-bold text-gray-300 tabular-nums">
           {formatTime(timer)}
         </div>

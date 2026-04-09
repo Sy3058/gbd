@@ -2,11 +2,11 @@ import { AnimatePresence } from "framer-motion";
 import { useGameStore } from "../stores/gameStore";
 import { BranchLane } from "./Branchlane";
 import { CommitNode } from "./CommitNode";
-import { HUD } from "./HUD";
 import { StartScreen } from "./overlay/StartScreen";
 import { GameOverScreen } from "./overlay/GameOverScreen";
 import { SuccessScreen } from "./overlay/SuccessScreen";
 import { TutorialPopup } from "./overlay/TutorialPropup";
+import { TutorialHint } from "./overlay/TutorialHint";
 import type { BranchName } from "../types";
 
 // 브랜치별 X 위치
@@ -22,6 +22,7 @@ function getBranchLeft(branch: BranchName): string {
 
 export function GameCanvas() {
   const gameState = useGameStore((s) => s.gameState);
+  const gameMode = useGameStore((s) => s.gameMode);
   const currentBranch = useGameStore((s) => s.currentBranch);
   const activeBranches = useGameStore((s) => s.activeBranches);
   const branchOrigins = useGameStore((s) => s.branchOrigins);
@@ -31,18 +32,6 @@ export function GameCanvas() {
 
   return (
     <div className="relative h-full overflow-hidden border-b border-gray-800">
-      {/* CSS 애니메이션 정의 */}
-      <style>{`
-        @keyframes draw-curve-up {
-          0% { stroke-dashoffset: 250; }
-          100% { stroke-dashoffset: 0; }
-        }
-        @keyframes scale-up-y {
-          0% { transform: scaleY(0); }
-          100% { transform: scaleY(1); }
-        }
-      `}</style>
-
       {/* 브랜치 라인 */}
       <div className="absolute inset-0 w-full h-full">
         {activeBranches.map((branch) => (
@@ -57,9 +46,6 @@ export function GameCanvas() {
           />
         ))}
       </div>
-
-      {/* HUD */}
-      <HUD />
 
       {/* 고정 커밋 */}
       <AnimatePresence>
@@ -85,12 +71,17 @@ export function GameCanvas() {
         )}
       </AnimatePresence>
 
+      {/* 튜토리얼 모드 힌트 */}
+      {gameMode === "tutorial" && gameState === "PLAYING" && activeCommit && (
+        <TutorialHint commit={activeCommit} currentBranch={currentBranch} />
+      )}
+
       {/* 오버레이 */}
       <AnimatePresence>
         {gameState === "START" && <StartScreen />}
         {gameState === "GAMEOVER" && <GameOverScreen />}
         {gameState === "SUCCESS" && <SuccessScreen />}
-        {gameState === "TUTORIAL" && <TutorialPopup />}
+        {gameState === "BRANCH_INTRO" && <TutorialPopup />}
       </AnimatePresence>
     </div>
   );

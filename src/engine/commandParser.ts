@@ -9,6 +9,12 @@ export function parseGitCommand(input: string): CommandResult {
     return { type: "COMMIT", message: commitMatch[1] };
   }
 
+  // git checkout -b <branch> (새 브랜치 생성 + 이동) — 반드시 일반 checkout보다 먼저 체크
+  const checkoutNewMatch = trimmed.match(/^git checkout -b (.+)$/);
+  if (checkoutNewMatch) {
+    return { type: "CHECKOUT_NEW", branch: checkoutNewMatch[1] as BranchName };
+  }
+
   // git checkout <branch>
   const checkoutMatch = trimmed.match(/^git checkout (.+)$/);
   if (checkoutMatch) {

@@ -1,9 +1,12 @@
 export type GameState =
   | "START"
   | "PLAYING"
-  | "TUTORIAL"
+  | "BRANCH_INTRO" // 새 브랜치 등장 시 인게임 팝업
   | "GAMEOVER"
   | "SUCCESS";
+
+export type GameMode = "tutorial" | "single";
+
 export type BranchName = "main" | "feature" | "hotfix" | string;
 
 export type ItemType = "stash" | "rebase" | "heal";
@@ -29,6 +32,7 @@ export interface Item {
 export type CommandResult =
   | { type: "COMMIT"; message: string }
   | { type: "CHECKOUT"; branch: BranchName }
+  | { type: "CHECKOUT_NEW"; branch: BranchName }
   | { type: "MERGE"; branch: BranchName }
   | { type: "ITEM_USE"; item: ItemType }
   | { type: "UNKNOWN"; raw: string };
@@ -40,6 +44,7 @@ export interface WaveConfig {
   spawnInterval: number;
   branches: BranchName[];
   itemDropRate: number;
+  mergeRate?: number; // 기본 0.2, 0으로 설정하면 merge 커밋 미생성
 }
 
 export type Grade = "S" | "A" | "B" | "C" | "D";

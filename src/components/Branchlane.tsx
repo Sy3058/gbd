@@ -45,14 +45,16 @@ export function BranchLane({
 }: Props) {
   const colors = getColors(branch);
   const stroke = isActive ? colors.stroke : `${colors.stroke}44`;
+
+  // transition-colors only: 위치/크기 속성에 transition 금지 (매 틱 변경되므로)
   const lineClass = clsx(
-    "absolute w-1 transition-all duration-700",
+    "absolute w-1 transition-colors duration-300",
     isActive ? colors.active : colors.inactive,
   );
 
   return (
     <>
-      {/* ── Main branch: full-height vertical line centered at leftPosition ── */}
+      {/* ── Main branch: full-height vertical line ── */}
       {branch === "main" && (
         <div
           className={lineClass}
@@ -63,34 +65,48 @@ export function BranchLane({
       {/* ── Non-main branch ── */}
       {branch !== "main" && (
         <>
-          {/* Vertical line — appears immediately when branch is activated.
-              Height grows from top down to originY (the split point).
-              Before the first commit on this branch, fills the full height. */}
+          {/*
+            feature 직선: 분기점(originY)에서 위로 올라가는 선
+            - originY 미설정: 전체 높이 (커밋 진입 전 레인 표시)
+            - originY 설정: top=0 → originY% (분기점까지만 표시, 그 이상은 main)
+            - mergeY 설정: top=0 → mergeY% (merge 지점에서 끝, 이후 스크롤 아웃)
+          */}
           <div
             className={lineClass}
             style={{
               left: leftPosition,
               marginLeft: "-2px",
               top: 0,
-              height: originY !== undefined ? `${originY}%` : "100%",
+              height: (() => {
+                if (mergeY !== undefined)
+                  return `${Math.min(mergeY, 100)}%`;
+                if (originY !== undefined)
+                  return `${Math.min(originY, 100)}%`;
+                return "100%";
+              })(),
             }}
           />
 
-          {/* Branch-start curve: only once the first commit establishes originY */}
+          {/*
+            분기 커브: main → feature
+            originY 위치에서 U자형 아치로 연결
+            M 0 0 = main측 (originY%), C 0 1, 1 1 = 아래로 arch, 1 0 = feature측 (originY%)
+          */}
           {originY !== undefined && parentLeft && (
             <svg
-              className="absolute pointer-events-none overflow-visible"
+              className="absolute pointer-events-none"
               viewBox="0 0 1 1"
               preserveAspectRatio="none"
               style={{
                 left: parentLeft,
                 width: `calc(${leftPosition} - ${parentLeft})`,
-                top: `${Math.max(0, originY - 10)}%`,
+                top: `${originY}%`,
                 height: "10%",
+                overflow: "visible",
               }}
             >
               <path
-                d="M 0 1 C 0.5 1, 0.5 0, 1 0"
+                d="M 0 0 C 0 1, 1 1, 1 0"
                 fill="none"
                 stroke={stroke}
                 strokeWidth="3"
@@ -99,10 +115,14 @@ export function BranchLane({
             </svg>
           )}
 
-          {/* Merge curve: appears when a merge commit is processed */}
+          {/*
+            머지 커브: feature → main
+            mergeY 위치에서 U자형 아치로 역방향 연결
+            M 1 0 = feature측 (mergeY%), C 1 1, 0 1 = 아래로 arch, 0 0 = main측 (mergeY%)
+          */}
           {mergeY !== undefined && parentLeft && (
             <svg
-              className="absolute pointer-events-none overflow-visible"
+              className="absolute pointer-events-none"
               viewBox="0 0 1 1"
               preserveAspectRatio="none"
               style={{
@@ -110,10 +130,11 @@ export function BranchLane({
                 width: `calc(${leftPosition} - ${parentLeft})`,
                 top: `${mergeY}%`,
                 height: "10%",
+                overflow: "visible",
               }}
             >
               <path
-                d="M 1 0 C 0.5 0, 0.5 1, 0 1"
+                d="M 1 0 C 1 1, 0 1, 0 0"
                 fill="none"
                 stroke={stroke}
                 strokeWidth="3"

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { GameCanvas } from "./components/GameCanvas";
+import { HUD } from "./components/HUD";
 import { Terminal } from "./components/Terminal";
 import { startGameLoop, stopGameLoop } from "./engine/gameLoop";
 
@@ -11,13 +12,16 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-[#0d1117] text-white flex flex-col font-mono overflow-hidden select-none">
-      {/* 게임 캔버스 (70%) */}
-      <div className="flex-grow" style={{ height: "70%" }}>
+      {/* HUD 헤더 */}
+      <HUD />
+
+      {/* 게임 캔버스 */}
+      <div className="flex-[7] min-h-0">
         <GameCanvas />
       </div>
 
-      {/* 터미널 (30%) */}
-      <div style={{ height: "30%" }}>
+      {/* 터미널 */}
+      <div className="flex-[3] min-h-0">
         <Terminal />
       </div>
     </div>

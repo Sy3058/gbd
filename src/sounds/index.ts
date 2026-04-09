@@ -4,10 +4,9 @@
 class SoundManager {
   private enabled = false;
 
-  play(name: string) {
+  play(_name: string) {
     if (!this.enabled) return;
     // TODO: Howler 연동
-    console.log(`[Sound] ${name}`);
   }
 
   enable() {

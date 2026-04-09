@@ -1,30 +1,39 @@
 import { create } from "zustand";
 import type {
   GameState,
+  GameMode,
   BranchName,
   CommitNode,
   Item,
   ItemType,
 } from "../types";
-import { WAVES, TOTAL_COMMITS } from "../data/waves";
+import {
+  WAVES,
+  TOTAL_COMMITS,
+  TUTORIAL_WAVES,
+  TUTORIAL_TOTAL_COMMITS,
+} from "../data/waves";
 import { generateWaveCommits, resetIdCounter } from "../engine/waveGenerator";
 import { parseGitCommand } from "../engine/commandParser";
 
 interface GameStore {
   // 게임 상태
   gameState: GameState;
+  gameMode: GameMode;
   hearts: number;
   deployPercent: number;
+  deployPerCommit: number;
   timer: number;
   combo: number;
   maxCombo: number;
   missCount: number;
+  wrongCount: number; // 잘못된 명령어 입력 횟수
 
   // 브랜치
   currentBranch: BranchName;
   activeBranches: BranchName[];
-  branchOrigins: Record<string, number>; // 브랜치별 분기 Y 좌표
-  branchMergePoints: Record<string, number>; // 브랜치별 머지 Y 좌표
+  branchOrigins: Record<string, number>;
+  branchMergePoints: Record<string, number>;
 
   // 커밋
   activeCommit: CommitNode | null;
@@ -47,7 +56,7 @@ interface GameStore {
   lastTickTime: number;
 
   // 액션
-  startGame: () => void;
+  startGame: (mode: GameMode) => void;
   tick: (now: number) => void;
   setInput: (input: string) => void;
   appendInput: (char: string) => void;
@@ -59,9 +68,7 @@ interface GameStore {
 }
 
 const INITIAL_HEARTS = 3;
-const WORLD_SPEED = 0.02; // 기본 낙하 속도
 const MAX_ITEMS = 3;
-const DEPLOY_PER_COMMIT = 100 / TOTAL_COMMITS;
 
 const ITEM_DEFINITIONS: Record<ItemType, Item> = {
   stash: {
@@ -77,28 +84,18 @@ const ITEM_DEFINITIONS: Record<ItemType, Item> = {
   heal: { type: "heal", name: "heal", description: "하트 1개 회복" },
 };
 
-// function calculateGrade(
-//   clearTime: number,
-//   maxCombo: number,
-//   missCount: number,
-// ): Grade {
-//   const score = maxCombo * 100 - missCount * 200 - clearTime / 1000;
-//   if (score > 800) return "S";
-//   if (score > 500) return "A";
-//   if (score > 200) return "B";
-//   if (score > 0) return "C";
-//   return "D";
-// }
-
 export const useGameStore = create<GameStore>((set, get) => ({
   // 초기 상태
   gameState: "START",
+  gameMode: "single",
   hearts: INITIAL_HEARTS,
   deployPercent: 0,
+  deployPerCommit: 100 / TOTAL_COMMITS,
   timer: 0,
   combo: 0,
   maxCombo: 0,
   missCount: 0,
+  wrongCount: 0,
   currentBranch: "main",
   activeBranches: ["main"],
   branchOrigins: {},
@@ -114,19 +111,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameStartTime: 0,
   lastTickTime: 0,
 
-  startGame: () => {
+  startGame: (mode: GameMode) => {
     resetIdCounter();
-    const firstWave = generateWaveCommits(WAVES[0]);
+    const waves = mode === "tutorial" ? TUTORIAL_WAVES : WAVES;
+    const totalCommits =
+      mode === "tutorial" ? TUTORIAL_TOTAL_COMMITS : TOTAL_COMMITS;
+    const firstWave = generateWaveCommits(waves[0]);
     const [first, ...rest] = firstWave;
 
     set({
       gameState: "PLAYING",
+      gameMode: mode,
       hearts: INITIAL_HEARTS,
       deployPercent: 0,
+      deployPerCommit: 100 / totalCommits,
       timer: 0,
       combo: 0,
       maxCombo: 0,
       missCount: 0,
+      wrongCount: 0,
       currentBranch: "main",
       activeBranches: ["main"],
       branchOrigins: {},
@@ -151,15 +154,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const lastTickTime = state.lastTickTime || now;
     const deltaTime = now - lastTickTime;
 
-    const currentWaveConfig = WAVES[state.currentWave];
+    const waves = state.gameMode === "tutorial" ? TUTORIAL_WAVES : WAVES;
+    const currentWaveConfig = waves[state.currentWave];
     const currentWorldSpeed = currentWaveConfig.speed;
-
-    // (선택) 만약 git rebase 등으로 게임 전체를 느리게 하는 timeScale이 있다면 여기서 곱해줍니다.
-    // const finalWorldSpeed = currentWorldSpeed * (state.timeScale || 1);
 
     const timer = now - state.gameStartTime;
 
-    // 고정 커밋 및 배경 이동에 currentWorldSpeed 적용
     const fixedCommits = state.fixedCommits
       .map((c) => ({ ...c, y: c.y + currentWorldSpeed * (deltaTime / 16.67) }))
       .filter((c) => c.y < 120);
@@ -171,16 +171,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const branchMergePoints = { ...state.branchMergePoints };
     for (const key in branchMergePoints) {
-      branchMergePoints[key] += WORLD_SPEED * (deltaTime / 16.67);
+      branchMergePoints[key] += currentWorldSpeed * (deltaTime / 16.67);
     }
 
-    // 활성 커밋 이동
     if (state.activeCommit) {
       const moveAmount = state.activeCommit.speed * (deltaTime / 16.67);
       const newY = state.activeCommit.y + moveAmount;
 
-      // 바닥 도달 → 미스
       if (newY > 95) {
+        // 바닥 도달 → 미스
         const newHearts = state.hearts - 1;
         const newMissCount = state.missCount + 1;
 
@@ -190,11 +189,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
             hearts: 0,
             timer,
             missCount: newMissCount,
+            lastTickTime: now,
           });
           return;
         }
 
-        // 다음 커밋 스폰
         const [next, ...remaining] = state.commitQueue;
         set({
           hearts: newHearts,
@@ -206,9 +205,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
           branchOrigins,
           branchMergePoints,
           timer,
+          lastTickTime: now,
         });
 
-        // 큐가 비었고 활성 커밋도 없으면 다음 웨이브
         if (!next) {
           get().advanceWaveOrEnd();
         }
@@ -220,13 +219,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
           branchOrigins,
           branchMergePoints,
           timer,
-          lastTickTime: now, // 틱 완료 후 시간 갱신
+          lastTickTime: now,
         });
       }
     } else {
-      // 활성 커밋이 없으면 큐에서 스폰 (딜레이 체크)
       const timeSinceLastSpawn = now - state.lastSpawnTime;
-      const currentWaveConfig = WAVES[state.currentWave];
       if (
         state.commitQueue.length > 0 &&
         timeSinceLastSpawn > (currentWaveConfig?.spawnInterval ?? 2000)
@@ -240,6 +237,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           branchOrigins,
           branchMergePoints,
           timer,
+          lastTickTime: now,
         });
       } else {
         set({
@@ -253,38 +251,53 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  // 내부 헬퍼: 웨이브 진행 또는 게임 종료
   advanceWaveOrEnd: () => {
     const state = get();
+    const waves = state.gameMode === "tutorial" ? TUTORIAL_WAVES : WAVES;
     const nextWaveIndex = state.currentWave + 1;
 
-    if (nextWaveIndex >= WAVES.length) {
-      // 모든 웨이브 클리어
+    if (nextWaveIndex >= waves.length) {
       set({ gameState: "SUCCESS" });
       return;
     }
 
-    // 새 웨이브의 브랜치가 추가되면 튜토리얼 표시
-    const nextWave = WAVES[nextWaveIndex];
+    const nextWave = waves[nextWaveIndex];
     const newBranches = nextWave.branches.filter(
       (b) => !state.activeBranches.includes(b),
     );
 
+    const newCommits = generateWaveCommits(nextWave);
+
+    // checkout -b 직후 첫 커밋은 반드시 새 브랜치 것이어야 함
     if (newBranches.length > 0) {
-      // 새 브랜치 등장 → 튜토리얼
-      const newCommits = generateWaveCommits(nextWave);
-      const [first, ...rest] = newCommits;
+      const targetBranch = newBranches[0];
+      const firstNewIdx = newCommits.findIndex((c) =>
+        newBranches.includes(c.targetBranch),
+      );
+      if (firstNewIdx > 0) {
+        // 새 브랜치 커밋을 맨 앞으로 스왑
+        [newCommits[0], newCommits[firstNewIdx]] = [
+          newCommits[firstNewIdx],
+          newCommits[0],
+        ];
+      } else if (firstNewIdx === -1) {
+        // 새 브랜치 커밋이 없으면 첫 번째를 강제 변경
+        newCommits[0] = { ...newCommits[0], targetBranch };
+      }
+    }
+
+    const [first, ...rest] = newCommits;
+
+    if (newBranches.length > 0) {
+      // 새 브랜치 등장 → BRANCH_INTRO 팝업
       set({
-        gameState: "TUTORIAL",
+        gameState: "BRANCH_INTRO",
         currentWave: nextWaveIndex,
         activeBranches: [...state.activeBranches, ...newBranches],
-        // 첫 번째 커밋을 튜토리얼 중 화면에 미리 표시 (frozen at 40%)
         activeCommit: first ? { ...first, y: 40 } : null,
         commitQueue: rest,
       });
     } else {
-      const newCommits = generateWaveCommits(nextWave);
-      const [first, ...rest] = newCommits;
       set({
         currentWave: nextWaveIndex,
         activeCommit: first ? { ...first, y: 0 } : null,
@@ -303,21 +316,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const parsed = parseGitCommand(state.input);
 
     switch (parsed.type) {
-      case "CHECKOUT": {
-        if (state.activeBranches.includes(parsed.branch)) {
-          set({ currentBranch: parsed.branch, input: "" });
+      case "CHECKOUT_NEW": {
+        // BRANCH_INTRO 중에만 유효: 새 브랜치 생성 + 이동
+        if (
+          state.gameState === "BRANCH_INTRO" &&
+          state.activeBranches.includes(parsed.branch)
+        ) {
+          set({
+            currentBranch: parsed.branch,
+            gameState: "PLAYING",
+            activeCommit: state.activeCommit
+              ? { ...state.activeCommit, y: 0 }
+              : null,
+            lastSpawnTime: performance.now(),
+            lastTickTime: performance.now(),
+            input: "",
+          });
+        }
+        break;
+      }
 
-          // 튜토리얼 중 브랜치로 이동하면 게임 재개
-          // activeCommit은 이미 튜토리얼에서 미리 표시된 첫 커밋 → y만 0으로 리셋
-          if (state.gameState === "TUTORIAL") {
-            set({
-              gameState: "PLAYING",
-              activeCommit: state.activeCommit
-                ? { ...state.activeCommit, y: 0 }
-                : null,
-              lastSpawnTime: performance.now(),
-            });
-          }
+      case "CHECKOUT": {
+        // PLAYING 중 기존 브랜치로 이동
+        if (
+          state.gameState === "PLAYING" &&
+          state.activeBranches.includes(parsed.branch)
+        ) {
+          set({ currentBranch: parsed.branch, input: "" });
         }
         break;
       }
@@ -326,7 +351,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       case "MERGE": {
         if (state.gameState !== "PLAYING" || !state.activeCommit) break;
 
-        // 입력한 전체 명령어가 활성 커밋의 text와 일치해야 함
         if (
           state.input.trim() === state.activeCommit.text &&
           state.currentBranch === state.activeCommit.targetBranch
@@ -335,27 +359,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
           const newMaxCombo = Math.max(state.maxCombo, newCombo);
           const newDeployPercent = Math.min(
             100,
-            state.deployPercent + DEPLOY_PER_COMMIT,
+            state.deployPercent + state.deployPerCommit,
           );
           const newProcessed = state.processedCount + 1;
 
-          // 새 브랜치가 처음 등장하면 분기점 기록
           const branchOrigins = { ...state.branchOrigins };
           const branchMergePoints = { ...state.branchMergePoints };
           const commit = state.activeCommit;
+
+          // 새 브랜치의 첫 커밋 → 분기점 기록 (undefined 체크로 y=0 케이스도 정확히 처리)
           if (
             commit.targetBranch !== "main" &&
-            !branchOrigins[commit.targetBranch]
+            branchOrigins[commit.targetBranch] === undefined
           ) {
             branchOrigins[commit.targetBranch] = commit.y;
           }
 
-          // 머지 커밋이면 머지 지점 기록
-          if (parsed.type === "MERGE") {
-            branchMergePoints[parsed.branch] = commit.y;
+          // merge 커밋 → 해당 브랜치의 머지 지점 기록
+          // branchOrigins가 먼저 설정된 경우에만 (분기 없는 머지 방지)
+          if (
+            parsed.type === "MERGE" &&
+            branchOrigins[commit.targetBranch] !== undefined
+          ) {
+            branchMergePoints[commit.targetBranch] = commit.y;
           }
 
-          // 아이템 드롭
           const items = [...state.items];
           if (
             commit.type === "item" &&
@@ -365,13 +393,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
             items.push(ITEM_DEFINITIONS[commit.itemDrop]);
           }
 
-          // 고정 커밋 추가
           const fixedCommits = [
             ...state.fixedCommits,
             { ...commit, isFixed: true },
           ];
 
-          // 배포 100% 도달
           if (newDeployPercent >= 100) {
             set({
               gameState: "SUCCESS",
@@ -388,7 +414,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
             break;
           }
 
-          // 다음 커밋
           const [next, ...remaining] = state.commitQueue;
           set({
             combo: newCombo,
@@ -404,10 +429,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
             lastSpawnTime: performance.now(),
           });
 
-          // 큐가 비었으면 웨이브 진행
           if (!next) {
             setTimeout(() => get().advanceWaveOrEnd(), 500);
           }
+        } else {
+          // 틀린 명령 → 콤보 초기화 + 오타 카운트
+          set({ combo: 0, wrongCount: state.wrongCount + 1 });
         }
         break;
       }
@@ -421,7 +448,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
         switch (parsed.item) {
           case "stash":
-            // 활성 커밋 3초간 정지 (속도를 0으로 했다가 복구)
             if (state.activeCommit) {
               const originalSpeed = state.activeCommit.speed;
               set({
@@ -437,7 +463,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
             }
             break;
           case "rebase":
-            // 활성 커밋 속도 50% 감소
             if (state.activeCommit) {
               set({
                 activeCommit: {
@@ -458,16 +483,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
         break;
       }
 
-      default:
+      default: {
+        // 인식 불가 명령어(오타) → 콤보 초기화 + 오타 카운트
+        if (state.gameState === "PLAYING" && state.activeCommit) {
+          set({ combo: 0, wrongCount: state.wrongCount + 1 });
+        }
         break;
+      }
     }
 
     set({ input: "" });
   },
 
   useItem: (itemType: ItemType) => {
-    // submitCommand에서 "git stash" 등으로 처리하므로
-    // 이 메서드는 단축키용 (나중에 확장)
     const state = get();
     const itemIndex = state.items.findIndex((i) => i.type === itemType);
     if (itemIndex === -1) return;
@@ -478,12 +506,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   reset: () => {
     set({
       gameState: "START",
+      gameMode: "single",
       hearts: INITIAL_HEARTS,
       deployPercent: 0,
+      deployPerCommit: 100 / TOTAL_COMMITS,
       timer: 0,
       combo: 0,
       maxCombo: 0,
       missCount: 0,
+      wrongCount: 0,
       currentBranch: "main",
       activeBranches: ["main"],
       branchOrigins: {},

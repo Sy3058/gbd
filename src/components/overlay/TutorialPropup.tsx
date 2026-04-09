@@ -4,9 +4,7 @@ import { useGameStore } from "../../stores/gameStore";
 
 export function TutorialPopup() {
   const activeBranches = useGameStore((s) => s.activeBranches);
-  // const submitCommand = useGameStore((s) => s.submitCommand);
 
-  // 가장 최근에 추가된 브랜치
   const newBranch = activeBranches[activeBranches.length - 1];
 
   return (
@@ -26,20 +24,16 @@ export function TutorialPopup() {
           신규 브랜치 감지됨!
         </h2>
         <p className="text-gray-300 text-sm mb-4 leading-relaxed">
-          새 커밋이{" "}
-          <span className="text-purple-400 font-bold">{newBranch}</span>{" "}
-          레인에서 내려옵니다.
+          새 브랜치{" "}
+          <span className="text-purple-400 font-bold">{newBranch}</span>가
+          생성되었습니다.
           <br />
-          터미널에 아래 명령어를 입력하여
-          <br />
-          현재 위치(HEAD)를 이동하세요.
+          아래 명령어로 브랜치를 만들고 이동하세요.
         </p>
         <div className="bg-black/50 px-4 py-2 rounded text-green-400 font-mono text-sm border border-gray-700 w-full mb-2 shadow-inner">
-          git checkout {newBranch}
+          git checkout -b {newBranch}
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          명령어를 입력하여 계속 진행
-        </p>
+        <p className="text-xs text-gray-500 mt-2">명령어를 입력하여 계속 진행</p>
       </motion.div>
     </motion.div>
   );

@@ -7,6 +7,8 @@ export function GameOverScreen() {
   const timer = useGameStore((s) => s.timer);
   const maxCombo = useGameStore((s) => s.maxCombo);
   const deployPercent = useGameStore((s) => s.deployPercent);
+  const missCount = useGameStore((s) => s.missCount);
+  const wrongCount = useGameStore((s) => s.wrongCount);
 
   return (
     <motion.div
@@ -26,9 +28,11 @@ export function GameOverScreen() {
           <p>배포 진행률: {Math.floor(deployPercent)}%</p>
           <p>최대 콤보: {maxCombo}</p>
           <p>시간: {Math.floor(timer / 1000)}초</p>
+          <p>미스 횟수: {missCount}</p>
+          <p>오타 횟수: {wrongCount}</p>
         </div>
         <button
-          onClick={startGame}
+          onClick={() => startGame("single")}
           className="flex items-center gap-2 bg-red-600 px-8 py-3 rounded-lg font-bold hover:bg-red-500 transition-all cursor-pointer"
         >
           <RefreshCw size={20} /> RETRY
