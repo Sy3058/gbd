@@ -489,12 +489,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     switch (parsed.type) {
       case "CHECKOUT_NEW": {
+        // 활성화되지 않은 브랜치를 만들려 하면 break하여 맨 밑의 오타 로직으로 빠지게 둠
         if (!state.activeBranches.includes(parsed.branch)) break;
 
         const branchOrigins = { ...state.branchOrigins };
 
         if (state.gameState === "BRANCH_INTRO") {
-          // 튜토리얼/새 브랜치 팝업 대기 중일 때: 현재 떠있는 커밋의 위치를 분기점으로 기록
+          // 튜토리얼 팝업 상태에서 정상 입력
           if (branchOrigins[parsed.branch] === undefined) {
             branchOrigins[parsed.branch] = state.activeCommit
               ? state.activeCommit.y
@@ -509,31 +510,46 @@ export const useGameStore = create<GameStore>((set, get) => ({
               : null,
             lastSpawnTime: performance.now(),
             lastTickTime: performance.now(),
-            branchOrigins, // 🔥 분기점 즉시 저장!
+            branchOrigins,
             input: "",
           });
+          return; // 🔥 정상 처리 완료: 함수 즉시 종료
         } else if (state.gameState === "PLAYING") {
-          // 플레이 도중 자유롭게 입력했을 때: 현재 떨어지고 있는 커밋 위치 기준
+          // 일반 플레이 도중 정상 입력
           if (branchOrigins[parsed.branch] === undefined) {
             branchOrigins[parsed.branch] = state.activeCommit
               ? state.activeCommit.y
               : 0;
           }
-          set({
-            currentBranch: parsed.branch,
-            branchOrigins, // 🔥 분기점 즉시 저장!
-            input: "",
-          });
+          set({ currentBranch: parsed.branch, branchOrigins, input: "" });
+          return; // 🔥 정상 처리 완료: 함수 즉시 종료
         }
-        break;
+        break; // 그 외 비정상 상태일 경우 오타 처리
       }
-      case "CHECKOUT":
-        if (state.activeBranches.includes(parsed.branch))
+
+      case "CHECKOUT": {
+        // 존재하는 브랜치로 정상 이동
+        if (
+          state.gameState === "PLAYING" &&
+          state.activeBranches.includes(parsed.branch)
+        ) {
           set({ currentBranch: parsed.branch, input: "" });
-        break;
+          return; // 🔥 정상 처리 완료: 함수 즉시 종료
+        }
+        break; // 존재하지 않는 브랜치로 이동 시도 시 오타 처리
+      }
+
+      case "COMMIT":
+      case "MERGE": {
+        // 이 곳에 도달했다는 것은 상단의 정답 판정(isNodeMatch)을 통과하지 못했다는 뜻.
+        // 즉, 타이밍이 안 맞았거나 다른 브랜치의 커밋을 치는 등 명백한 '실수'임.
+        break; // 🔥 바로 밑의 오타 처리 로직으로 보냄
+      }
+
       case "ITEM_USE": {
         const itemIndex = state.items.findIndex((i) => i.type === parsed.item);
-        if (itemIndex === -1) break;
+        if (itemIndex === -1) break; // 없는 아이템 사용 시도 시 오타 처리
+
         const newItems = [...state.items];
         newItems.splice(itemIndex, 1);
 
@@ -549,7 +565,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             if (current)
               set({ activeCommit: { ...current, speed: originalSpeed } });
           }, 3000);
-          return;
+          return; // 🔥 정상 처리 완료
         } else if (parsed.item === "rebase" && state.activeCommit) {
           set({
             activeCommit: {
@@ -559,16 +575,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
             items: newItems,
             input: "",
           });
-          return;
+          return; // 🔥 정상 처리 완료
         } else if (parsed.item === "heal") {
           set({
-            hearts: Math.min(INITIAL_HEARTS, state.hearts + 1),
+            hearts: Math.min(3, state.hearts + 1),
             items: newItems,
             input: "",
           });
-          return;
+          return; // 🔥 정상 처리 완료
         }
+        break;
       }
+    }
+
+    if (state.gameState === "PLAYING" && state.activeCommit) {
+      set({ combo: 0, wrongCount: state.wrongCount + 1, input: "" });
+    } else {
+      set({ input: "" });
     }
 
     if (state.gameState === "PLAYING" && state.activeCommit)
