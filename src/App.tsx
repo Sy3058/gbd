@@ -3,6 +3,7 @@ import { GameCanvas } from "./components/GameCanvas";
 import { HUD } from "./components/HUD";
 import { Terminal } from "./components/Terminal";
 import { startGameLoop, stopGameLoop } from "./engine/gameLoop";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
   useEffect(() => {
@@ -24,6 +25,8 @@ export default function App() {
       <div className="flex-[3] min-h-0">
         <Terminal />
       </div>
+
+      <Analytics />
     </div>
   );
 }
