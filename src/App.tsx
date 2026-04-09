@@ -4,6 +4,7 @@ import { HUD } from "./components/HUD";
 import { Terminal } from "./components/Terminal";
 import { startGameLoop, stopGameLoop } from "./engine/gameLoop";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 export default function App() {
   useEffect(() => {
@@ -27,6 +28,7 @@ export default function App() {
       </div>
 
       <Analytics />
+      <SpeedInsights />
     </div>
   );
 }
