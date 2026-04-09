@@ -275,6 +275,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
             aliveBranches[Math.floor(Math.random() * aliveBranches.length)];
           return generateCheckoutNode(b, randomSource, nextWave.speed);
         });
+
+        // 🔥 핵심 추가 로직: 배열 합치기 전에 첫 커밋의 타겟을 새 브랜치로 조작
+        if (newCommits.length > 0) {
+          newCommits[0].targetBranch = newBranches[newBranches.length - 1];
+        }
+
         newCommits.unshift(...checkoutNodes);
       } else {
         const targetBranch = newBranches[0];
