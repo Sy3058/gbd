@@ -405,9 +405,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       if (
         parsed.type === "MERGE" &&
-        branchOrigins[commit.targetBranch] !== undefined
+        branchOrigins[parsed.branch] !== undefined
       ) {
-        branchMergePoints[commit.targetBranch] = commit.y;
+        branchMergePoints[parsed.branch] = commit.y;
       }
 
       const items = [...state.items];
@@ -498,16 +498,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
         if (state.gameState === "BRANCH_INTRO") {
           if (branchOrigins[parsed.branch] === undefined) {
-            branchOrigins[parsed.branch] = state.activeCommit
-              ? state.activeCommit.y
-              : 0;
+            branchOrigins[parsed.branch] = 0;
+
+            const branchParents = { ...state.branchParents };
+            branchParents[parsed.branch] = state.currentBranch;
+            set({ branchParents });
           }
+
           set({
             currentBranch: parsed.branch,
             gameState: "PLAYING",
             waveAnnouncement: null,
             activeCommit: state.activeCommit
-              ? { ...state.activeCommit, y: 0 }
+              ? { ...state.activeCommit, y: 0 } // 여기서 0으로 텔레포트 됨
               : null,
             lastSpawnTime: performance.now(),
             lastTickTime: performance.now(),
@@ -516,6 +519,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           });
           return;
         } else if (state.gameState === "PLAYING") {
+          // (싱글모드 등 일반 플레이 중 자유 이동 시)
           if (branchOrigins[parsed.branch] === undefined) {
             branchOrigins[parsed.branch] = state.activeCommit
               ? state.activeCommit.y
